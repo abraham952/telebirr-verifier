@@ -1,45 +1,43 @@
 const express = require('express');
 const cors = require('cors');
-const { receipt, utils: { loadReceipt, parseFromHTML } } = require('telebirr-receipt');
+const verifyReceipt = require('telebirr-receipt');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Disable TLS check — needed for telebirr site scraping (⚠️ Use with caution)
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0;
-// Simple GET route to check service status
+// ✅ Root route to show status in browser
 app.get('/', (req, res) => {
   res.send('Telebirr verifier microservice is running.');
 });
 
+// ✅ POST /verify route
 app.post('/verify', async (req, res) => {
   const { receiptNo } = req.body;
 
   if (!receiptNo) {
-    return res.status(400).json({ success: false, message: 'Receipt number is required.' });
+    return res.status(400).json({ success: false });
   }
 
   try {
-    const html = await loadReceipt({ receiptNo });
-    const parsed = parseFromHTML(html);
+    const result = await verifyReceipt(receiptNo);
 
-    const { verifyAll, equals } = receipt(parsed, {
-      to: 'debele tola',
-      amount: '200.00'
-    });
+    const nameMatch = result.receiver.toLowerCase() === 'debele tola';
+    const amountMatch = parseFloat(result.amount) === 200.00;
 
-    const isValid = equals(parsed?.to, 'debele tola') && equals(parsed?.amount, '200.00');
-
-    return res.json({ success: isValid });
+    if (nameMatch && amountMatch) {
+      return res.json({ success: true });
+    } else {
+      return res.json({ success: false });
+    }
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Verification failed.' });
+    return res.json({ success: false });
   }
 });
 
+// ✅ Listen on dynamic port for Render deployment
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Telebirr verifier running on port ${PORT}`);
 });
-
