@@ -59,7 +59,7 @@ app.post('/verify', async (req, res) => {
   const { receiver, amount } = details;
 
   // Strict match: name and amount
-  if (receiver === 'Ibrahi Ghazali' && amount === '1.00') {
+  if (receiver === 'debele tola' && amount === '200.00') {
     return res.json({ success: true });
   } else {
     return res.json({ success: false });
