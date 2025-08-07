@@ -1,18 +1,49 @@
 const express = require('express');
 const cors = require('cors');
-const verifyReceipt = require('telebirr-receipt');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// ✅ Root route to show status in browser
+// Optional root for browser testing
 app.get('/', (req, res) => {
   res.send('Telebirr verifier microservice is running.');
 });
 
-// ✅ POST /verify route
+// Helper function to scrape receipt data
+const fetchReceiptDetails = async (receiptNo) => {
+  try {
+    const url = `https://transactioninfo.ethiotelecom.et/receipt/${receiptNo}`;
+    const { data: html } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0' // Helps avoid some basic anti-bot blocks
+      }
+    });
+
+    const $ = cheerio.load(html);
+    let receiver = '';
+    let amount = '';
+
+    // Look for <td>Receiver</td><td>debele tola</td>
+    $('td').each((i, el) => {
+      const label = $(el).text().trim().toLowerCase();
+      if (label === 'receiver') {
+        receiver = $(el).next().text().trim().toLowerCase();
+      }
+      if (label === 'amount') {
+        amount = $(el).next().text().trim();
+      }
+    });
+
+    return { receiver, amount };
+  } catch (err) {
+    return null;
+  }
+};
+
+// /verify POST route
 app.post('/verify', async (req, res) => {
   const { receiptNo } = req.body;
 
@@ -20,24 +51,23 @@ app.post('/verify', async (req, res) => {
     return res.status(400).json({ success: false });
   }
 
-  try {
-    const result = await verifyReceipt(receiptNo);
+  const details = await fetchReceiptDetails(receiptNo);
+  if (!details) {
+    return res.json({ success: false });
+  }
 
-    const nameMatch = result.receiver.toLowerCase() === 'debele tola';
-    const amountMatch = parseFloat(result.amount) === 200.00;
+  const { receiver, amount } = details;
 
-    if (nameMatch && amountMatch) {
-      return res.json({ success: true });
-    } else {
-      return res.json({ success: false });
-    }
-  } catch (error) {
+  // Strict match: name and amount
+  if (receiver === 'debele tola' && amount === '200.00') {
+    return res.json({ success: true });
+  } else {
     return res.json({ success: false });
   }
 });
 
-// ✅ Listen on dynamic port for Render deployment
-const PORT = process.env.PORT || 3000;
+// Start server
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Telebirr verifier running on port ${PORT}`);
 });
