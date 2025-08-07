@@ -10,6 +10,10 @@ app.use(express.json());
 
 // Disable TLS check — needed for telebirr site scraping (⚠️ Use with caution)
 process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0;
+// Simple GET route to check service status
+app.get('/', (req, res) => {
+  res.send('Telebirr verifier microservice is running.');
+});
 
 app.post('/verify', async (req, res) => {
   const { receiptNo } = req.body;
